@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/home/lijiaxin/projects/loongarch/seekfree/LS2K0300_Library/ls2k0300_linux_4.19/include",
+                "/home/lijiaxin/projects/loongarch/seekfree/LS2K0300_Library/ls2k0300_linux_4.19/arch/loongarch/include",
+                "/home/lijiaxin/projects/loongarch/seekfree/LS2K0300_Library/ls2k0300_linux_4.19/arch/loongarch/include/generated"
+            ],
+            "defines": [],
+            "compilerPath": "/opt/loongson-gnu-toolchain-8.3-x86_64-loongarch64-linux-gnu-rc1.4/bin/loongarch64-linux-gnu-gcc",
+            "cStandard": "c17",
+            "cppStandard": "gnu++17",
+            "intelliSenseMode": "linux-gcc-x64",
+            "configurationProvider": "ms-vscode.makefile-tools"
+        }
+    ],
+    "version": 4
+}
