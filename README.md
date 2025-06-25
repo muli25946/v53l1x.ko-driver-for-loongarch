@@ -13,7 +13,6 @@
 		status = "okay";
 		compatible = "lijiaxin,v53l1x";
 		reg = <0x29>;
-		xshut-gpios = <&gpa2 13 GPIO_ACTIVE_HIGH>;// GPIO045
 	};
 };
 ```
