@@ -271,6 +271,33 @@ static const struct file_operations v53l1x_ops = {
  */
 static int v53l1x_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
+
+#if defined(LONG_RANGE_MODE)
+    u8 long_range_config_buff[4] = {0x07, 0x05, 0x06, 0x06};
+    u8 TB_config_buff[24] = {0x00, 0x1E, 0x00, 0x22,
+                             0x00, 0x60, 0x00, 0x6E,
+                             0x00, 0xAD, 0x00, 0xC6,
+                             0x01, 0xCC, 0x01, 0xEA,
+                             0x02, 0xD9, 0x02, 0xF8,
+                             0x04, 0x8F, 0x04, 0xA4};
+
+#else
+    u8 short_range_config_buff[4] = {0x0F, 0x0D, 0x0E, 0x0E};
+    u8 TB_config_buff[28] = {0x00, 0x1D, 0x00, 0x27,
+                             0x00, 0x51, 0x00, 0x6E,
+                             0x00, 0xD6, 0x00, 0x6E,
+                             0x01, 0xAE, 0x01, 0xE8,
+                             0x02, 0xE1, 0x03, 0x88,
+                             0x03, 0xE1, 0x04, 0x96,
+                             0x05, 0x91, 0x05, 0xC1};
+#endif
+
+    u8 sys_boot_status = 5, IntPol, Temp, isDataReady, TB_config_status = 0;
+    u8 tx_Init_Config_buff[91], check_Init_Config_buff[91], rxdata_DeviceID[2], temp_for_TB_buff[2], inner_config_buff[4], ClockPLL[2];
+    u8 wait_timeout = 10;
+    u16 temp_for_TB, TB;
+    u32 measure_period;
+
     /* 1、构建设备号 */
     if (v53l1xdev.major)
     {
@@ -302,32 +329,6 @@ static int v53l1x_probe(struct i2c_client *client, const struct i2c_device_id *i
     }
 
     v53l1xdev.private_data = client;
-
-#if defined(LONG_RANGE_MODE)
-    u8 long_range_config_buff[4] = {0x07, 0x05, 0x06, 0x06};
-    u8 TB_config_buff[24] = {0x00, 0x1E, 0x00, 0x22,
-                             0x00, 0x60, 0x00, 0x6E,
-                             0x00, 0xAD, 0x00, 0xC6,
-                             0x01, 0xCC, 0x01, 0xEA,
-                             0x02, 0xD9, 0x02, 0xF8,
-                             0x04, 0x8F, 0x04, 0xA4};
-
-#else
-    u8 short_range_config_buff[4] = {0x0F, 0x0D, 0x0E, 0x0E};
-    u8 TB_config_buff[28] = {0x00, 0x1D, 0x00, 0x27,
-                             0x00, 0x51, 0x00, 0x6E,
-                             0x00, 0xD6, 0x00, 0x6E,
-                             0x01, 0xAE, 0x01, 0xE8,
-                             0x02, 0xE1, 0x03, 0x88,
-                             0x03, 0xE1, 0x04, 0x96,
-                             0x05, 0x91, 0x05, 0xC1};
-#endif
-
-    u8 sys_boot_status = 5, IntPol, Temp, isDataReady, TB_config_status = 0;
-    u8 tx_Init_Config_buff[91], check_Init_Config_buff[91], rxdata_DeviceID[2], temp_for_TB_buff[2], inner_config_buff[4], ClockPLL[2];
-    u8 wait_timeout = 10;
-    u16 temp_for_TB, TB;
-    u32 measure_period;
 
     /*检查设备ID以确认iic通信是否正常*/
     v53l1x_read_regs_16addr(&v53l1xdev, VL53L1_IDENTIFICATION__MODEL_ID, rxdata_DeviceID, 2); // 读取设备ID
