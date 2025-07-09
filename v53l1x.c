@@ -212,6 +212,97 @@ void v53l1x_readdata(struct v53l1x_dev *dev)
  */
 static int v53l1x_open(struct inode *inode, struct file *filp)
 {
+
+    filp->private_data = &v53l1xdev;
+
+    /*开始测量*/
+    v53l1x_write_reg_16addr(&v53l1xdev, SYSTEM__MODE_START, 0x40); // 启动测距模式
+
+    return 0;
+}
+
+/*
+ * @description		: 从设备读取数据
+ * @param - filp 	: 要打开的设备文件(文件描述符)
+ * @param - buf 	: 返回给用户空间的数据缓冲区
+ * @param - cnt 	: 要读取的数据长度
+ * @param - offt 	: 相对于文件首地址的偏移
+ * @return 			: 读取的字节数，如果为负值，表示读取失败
+ */
+static ssize_t v53l1x_read(struct file *filp, char __user *buf, size_t cnt, loff_t *off)
+{
+    u16 data[1];
+    long err = 0;
+
+    struct v53l1x_dev *dev = (struct v53l1x_dev *)filp->private_data;
+
+    v53l1x_readdata(dev);
+
+    data[0] = dev->distance_mm; // 将设备距离值存入data数组
+
+    err = copy_to_user(buf, data, sizeof(data));
+    return 0;
+}
+
+/*
+ * @description		: 关闭/释放设备
+ * @param - filp 	: 要关闭的设备文件(文件描述符)
+ * @return 			: 0 成功;其他 失败
+ */
+static int v53l1x_release(struct inode *inode, struct file *filp)
+{
+    return 0;
+}
+
+/* v53l1x操作函数 */
+static const struct file_operations v53l1x_ops = {
+    .owner = THIS_MODULE,
+    .open = v53l1x_open,
+    .read = v53l1x_read,
+    .release = v53l1x_release,
+};
+
+/*
+ * @description     : i2c驱动的probe函数，当驱动与
+ *                    设备匹配以后此函数就会执行
+ * @param - client  : i2c设备
+ * @param - id      : i2c设备ID
+ * @return          : 0，成功;其他负值,失败
+ */
+static int v53l1x_probe(struct i2c_client *client, const struct i2c_device_id *id)
+{
+    /* 1、构建设备号 */
+    if (v53l1xdev.major)
+    {
+        v53l1xdev.devid = MKDEV(v53l1xdev.major, 0);
+        register_chrdev_region(v53l1xdev.devid, V53L1X_CNT, V53L1X_NAME);
+    }
+    else
+    {
+        alloc_chrdev_region(&v53l1xdev.devid, 0, V53L1X_CNT, V53L1X_NAME);
+        v53l1xdev.major = MAJOR(v53l1xdev.devid);
+    }
+
+    /* 2、注册设备 */
+    cdev_init(&v53l1xdev.cdev, &v53l1x_ops);
+    cdev_add(&v53l1xdev.cdev, v53l1xdev.devid, V53L1X_CNT);
+
+    /* 3、创建类 */
+    v53l1xdev.class = class_create(THIS_MODULE, V53L1X_NAME);
+    if (IS_ERR(v53l1xdev.class))
+    {
+        return PTR_ERR(v53l1xdev.class);
+    }
+
+    /* 4、创建设备 */
+    v53l1xdev.device = device_create(v53l1xdev.class, NULL, v53l1xdev.devid, NULL, V53L1X_NAME);
+    if (IS_ERR(v53l1xdev.device))
+    {
+        return PTR_ERR(v53l1xdev.device);
+    }
+
+    v53l1xdev.private_data = client;
+
 #if defined(LONG_RANGE_MODE)
     u8 long_range_config_buff[4] = {0x07, 0x05, 0x06, 0x06};
     u8 TB_config_buff[24] = {0x00, 0x1E, 0x00, 0x22,
@@ -237,7 +328,6 @@ static int v53l1x_open(struct inode *inode, struct file *filp)
     u8 wait_timeout = 10;
     u16 temp_for_TB, TB;
     u32 measure_period;
-    filp->private_data = &v53l1xdev;
 
     /*检查设备ID以确认iic通信是否正常*/
     v53l1x_read_regs_16addr(&v53l1xdev, VL53L1_IDENTIFICATION__MODEL_ID, rxdata_DeviceID, 2); // 读取设备ID
@@ -456,94 +546,6 @@ static int v53l1x_open(struct inode *inode, struct file *filp)
     inner_config_buff[3] = measure_period & 0xFF;         // 0x1E
     v53l1x_write_regs_16addr(&v53l1xdev, VL53L1_SYSTEM__INTERMEASUREMENT_PERIOD, inner_config_buff, 4);
 
-    /*开始测量*/
-    v53l1x_write_reg_16addr(&v53l1xdev, SYSTEM__MODE_START, 0x40); // 启动测距模式
-
-    return 0;
-}
-
-/*
- * @description		: 从设备读取数据
- * @param - filp 	: 要打开的设备文件(文件描述符)
- * @param - buf 	: 返回给用户空间的数据缓冲区
- * @param - cnt 	: 要读取的数据长度
- * @param - offt 	: 相对于文件首地址的偏移
- * @return 			: 读取的字节数，如果为负值，表示读取失败
- */
-static ssize_t v53l1x_read(struct file *filp, char __user *buf, size_t cnt, loff_t *off)
-{
-    u16 data[1];
-    long err = 0;
-
-    struct v53l1x_dev *dev = (struct v53l1x_dev *)filp->private_data;
-
-    v53l1x_readdata(dev);
-
-    data[0] = dev->distance_mm; // 将设备距离值存入data数组
-
-    err = copy_to_user(buf, data, sizeof(data));
-    return 0;
-}
-
-/*
- * @description		: 关闭/释放设备
- * @param - filp 	: 要关闭的设备文件(文件描述符)
- * @return 			: 0 成功;其他 失败
- */
-static int v53l1x_release(struct inode *inode, struct file *filp)
-{
-    return 0;
-}
-
-/* v53l1x操作函数 */
-static const struct file_operations v53l1x_ops = {
-    .owner = THIS_MODULE,
-    .open = v53l1x_open,
-    .read = v53l1x_read,
-    .release = v53l1x_release,
-};
-
-/*
- * @description     : i2c驱动的probe函数，当驱动与
- *                    设备匹配以后此函数就会执行
- * @param - client  : i2c设备
- * @param - id      : i2c设备ID
- * @return          : 0，成功;其他负值,失败
- */
-static int v53l1x_probe(struct i2c_client *client, const struct i2c_device_id *id)
-{
-    /* 1、构建设备号 */
-    if (v53l1xdev.major)
-    {
-        v53l1xdev.devid = MKDEV(v53l1xdev.major, 0);
-        register_chrdev_region(v53l1xdev.devid, V53L1X_CNT, V53L1X_NAME);
-    }
-    else
-    {
-        alloc_chrdev_region(&v53l1xdev.devid, 0, V53L1X_CNT, V53L1X_NAME);
-        v53l1xdev.major = MAJOR(v53l1xdev.devid);
-    }
-
-    /* 2、注册设备 */
-    cdev_init(&v53l1xdev.cdev, &v53l1x_ops);
-    cdev_add(&v53l1xdev.cdev, v53l1xdev.devid, V53L1X_CNT);
-
-    /* 3、创建类 */
-    v53l1xdev.class = class_create(THIS_MODULE, V53L1X_NAME);
-    if (IS_ERR(v53l1xdev.class))
-    {
-        return PTR_ERR(v53l1xdev.class);
-    }
-
-    /* 4、创建设备 */
-    v53l1xdev.device = device_create(v53l1xdev.class, NULL, v53l1xdev.devid, NULL, V53L1X_NAME);
-    if (IS_ERR(v53l1xdev.device))
-    {
-        return PTR_ERR(v53l1xdev.device);
-    }
-
-    v53l1xdev.private_data = client;
-
     return 0;
 }
 
@@ -596,6 +598,7 @@ static int __init v53l1x_init(void)
     int ret = 0;
 
     ret = i2c_add_driver(&v53l1x_driver);
+
     return ret;
 }
 
