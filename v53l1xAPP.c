@@ -53,8 +53,9 @@ int main(int argc, char *argv[])
             printf("read error, ret = %d\r\n", ret);
         }
         i++;
-        sleep(2); /* 延时100毫秒 */
+        sleep(1);
     }
     close(fd); /* 关闭文件 */
+
     return 0;
 }
